@@ -29,9 +29,9 @@ namespace jsonschema {
 
     template <class Json,class URIResolver>
     typename std::enable_if<extension_traits::is_unary_function_object_exact<URIResolver,Json,std::string>::value,std::shared_ptr<json_schema<Json>>>::type
-    make_schema(const Json& schema, const URIResolver& resolver)
+    make_schema(const Json& schema, URIResolver&& resolver)
     {
-        jsoncons::jsonschema::draft7::keyword_factory<Json> kwFactory(resolver);
+        jsoncons::jsonschema::draft7::keyword_factory<Json> kwFactory(std::forward<URIResolver>(resolver));
         kwFactory.load_root(schema);
 
         return kwFactory.get_schema();
