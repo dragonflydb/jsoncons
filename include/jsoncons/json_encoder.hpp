@@ -355,6 +355,7 @@ namespace detail {
                     colon_str_.push_back(':');
                     break;
             }
+            colon_str_.append(options.after_key_chars());
             switch (options.spaces_around_comma())
             {
                 case spaces_option::space_after:
@@ -1038,9 +1039,9 @@ namespace detail {
             sink_.append(options_.new_line_chars().data(),options_.new_line_chars().length());
             for (int i = 0; i < indent_amount_; ++i)
             {
-                sink_.push_back(' ');
+                sink_.append(options_.indent_chars().data(), options_.indent_chars().length());
             }
-            column_ = indent_amount_;
+            column_ = indent_amount_ * options_.new_line_chars().length();
         }
 
         void new_line(std::size_t len)
@@ -1048,7 +1049,7 @@ namespace detail {
             sink_.append(options_.new_line_chars().data(),options_.new_line_chars().length());
             for (std::size_t i = 0; i < len; ++i)
             {
-                sink_.push_back(' ');
+                sink_.append(options_.indent_chars().data(), options_.indent_chars().length());
             }
             column_ = len;
         }
