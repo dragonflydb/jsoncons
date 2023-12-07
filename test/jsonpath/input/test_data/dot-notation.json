@@ -157,7 +157,7 @@
         "cases": [
             {
                 "comment" : "Dot notation with dash",
-                "expression" : "$.key-dash",
+                "expression" : "$['key']-dash",
                 "error" : true
             },
             {

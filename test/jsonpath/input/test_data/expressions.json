@@ -6,7 +6,7 @@
         "cases": [
             {
                "comment" : "Dot notation after filter expression",
-               "expression": "$[(@.length-1)]",
+               "expression": "$[(@['length']-1)]",
                "result": ["fifth"]
             },
             {
@@ -68,7 +68,7 @@
         "cases": [
             {
                "comment" : "Normalized paths with expression",
-               "expression": "$.data.paymentDataList[0,(@.length-1)].DDMM",
+               "expression": "$.data.paymentDataList[0,(@['length']-1)].DDMM",
                "path": [
                  "$['data']['paymentDataList'][0]['DDMM']",
                  "$['data']['paymentDataList'][4]['DDMM']"
