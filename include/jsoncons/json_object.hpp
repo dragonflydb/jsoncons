@@ -560,13 +560,13 @@ namespace jsoncons {
                 auto last = first + count;
 
                 std::sort(first, last, compare);
-                members_.emplace_back(first->name, std::move(first->value));
+                members_.emplace_back(KeyT(first->name, get_allocator()), std::move(first->value));
                 auto prev_it = first;
                 for (auto it = first+1; it != last; ++it)
                 {
                     if (it->name != prev_it->name)
                     {
-                        members_.emplace_back(it->name, std::move(it->value));
+                        members_.emplace_back(KeyT(it->name, get_allocator()), std::move(it->value));
                     }
                     ++prev_it;
                 }
