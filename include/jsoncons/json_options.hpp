@@ -365,7 +365,7 @@ public:
           line_length_limit_(other.line_length_limit_),
           new_line_chars_(std::move(other.new_line_chars_)),
           after_key_chars_(std::move(other.after_key_chars_)),
-          indent_chars_(std::move(other.indent_chars))
+          indent_chars_(std::move(other.indent_chars_))
     {
     }
 protected:
