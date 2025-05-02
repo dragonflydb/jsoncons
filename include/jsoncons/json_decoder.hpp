@@ -70,16 +70,15 @@ private:
 
 public:
     json_decoder(const allocator_type& alloc = allocator_type(), 
-        const temp_allocator_type& temp_alloc = temp_allocator_type())
+        const temp_allocator_type& temp_alloc = temp_allocator_type(),
+        size_t items_count = 1000)
         : allocator_(alloc),
           result_(),
           name_(alloc),
           item_stack_(alloc),
           structure_stack_(temp_alloc)
     {
-        item_stack_.reserve(1000);
-        structure_stack_.reserve(100);
-        structure_stack_.emplace_back(structure_type::root_t, 0);
+        Initialize(items_count, items_count / 10);
     }
 
     json_decoder(temp_allocator_arg_t, 
@@ -90,9 +89,7 @@ public:
           item_stack_(),
           structure_stack_(temp_alloc)
     {
-        item_stack_.reserve(1000);
-        structure_stack_.reserve(100);
-        structure_stack_.emplace_back(structure_type::root_t, 0);
+        Initialize(1000,100);
     }
 
     void reset()
@@ -117,6 +114,13 @@ public:
     }
 
 private:
+
+    void Initialize(size_t items_count, size_t structures_count)
+    {
+        item_stack_.reserve(items_count);
+        structure_stack_.reserve(structures_count);
+        structure_stack_.emplace_back(structure_type::root_t, 0);
+    }
 
     void visit_flush() override
     {
