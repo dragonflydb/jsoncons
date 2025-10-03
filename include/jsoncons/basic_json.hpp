@@ -42,6 +42,9 @@
 #if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
 #include <memory_resource> // std::poymorphic_allocator
 #endif
+#if defined(JSONCONS_COMPUTE_MEMORY_SIZE)
+#include <mimalloc.h> // mi_usable_size
+#endif
 
 namespace jsoncons { 
 
@@ -1597,6 +1600,146 @@ namespace jsoncons {
             return ptr;
         }
 
+#if defined(JSONCONS_COMPUTE_MEMORY_SIZE)
+        // Helper function to get usable size of allocated memory
+        // Uses mi_usable_size()
+        template<typename T>
+        static std::size_t get_usable_size(const T* ptr)
+        {
+            if (ptr == nullptr)
+            {
+                return 0;
+            }
+            return mi_usable_size(const_cast<T*>(ptr));
+        }
+
+        // Recursive implementation of compute_memory_size
+        std::size_t compute_memory_size_impl() const
+        {
+            std::size_t mem_size = 0;
+            
+            switch (storage_kind())
+            {
+                case json_storage_kind::null:
+                case json_storage_kind::empty_object:
+                case json_storage_kind::boolean:
+                case json_storage_kind::int64:
+                case json_storage_kind::uint64:
+                case json_storage_kind::half_float:
+                case json_storage_kind::float64:
+                    // These are stored inline, no dynamic allocation
+                    mem_size = 0;
+                    break;
+                    
+                case json_storage_kind::short_str:
+                    // Short string optimization - stored inline
+                    mem_size = 0;
+                    break;
+                    
+                case json_storage_kind::long_str:
+                {
+                    // Get the string data pointer and compute its allocated size
+                    const auto& storage = cast<long_string_storage>();
+                    const char_type* str_ptr = storage.data();
+                    
+                    // Use mi_usable_size to get actual allocated size
+                    mem_size = get_usable_size(str_ptr);
+                    break;
+                }
+                
+                case json_storage_kind::byte_str:
+                {
+                    // Similar to long_str
+                    const auto& storage = cast<byte_string_storage>();
+                    const uint8_t* data_ptr = storage.data();
+                    
+                    mem_size = get_usable_size(data_ptr);
+                    break;
+                }
+                
+                case json_storage_kind::array:
+                {
+                    // Get array internal storage
+                    const array& arr = cast<array_storage>().value();
+                    
+                    // Memory for the array object itself
+                    mem_size += sizeof(array);
+                    
+                    // Memory for the array's internal buffer
+                    // Arrays use std::vector which guarantees contiguous storage
+                    // We can get pointer via &arr[0] if size > 0
+                    if (!arr.empty())
+                    {
+                        // Get pointer to internal vector buffer
+                        const basic_json* data_ptr = &arr[0];
+                        // Use mi_usable_size() for precise allocated size
+                        mem_size += get_usable_size(data_ptr);
+                    }
+                    
+                    // Recursively compute size of each element
+                    for (const auto& elem : arr)
+                    {
+                        mem_size += elem.compute_memory_size_impl();
+                    }
+                    break;
+                }
+                
+                case json_storage_kind::object:
+                {
+                    // Get object internal storage
+                    const object& obj = cast<object_storage>().value();
+                    
+                    // Memory for the object itself
+                    mem_size += sizeof(object);
+                    
+                    // Memory for the object's internal storage (vector of key_value_type)
+                    // Objects use std::vector internally (sorted_json_object or order_preserving_json_object)
+                    if (!obj.empty())
+                    {
+                        // Get pointer to internal vector buffer via iterator
+                        const key_value_type* data_ptr = &(*obj.begin());
+                        // Use mi_usable_size() for precise allocated size
+                        mem_size += get_usable_size(data_ptr);
+                    }
+                    
+                    // Recursively compute size of keys and values
+                    for (const auto& member : obj)
+                    {
+                        // Key size: key_type is std::basic_string
+                        // The mi_usable_size() above already includes the inline part of keys.
+                        // Here we only need to count dynamic memory for keys that exceed SSO buffer
+                        const auto& key_str = member.key();
+                        
+                        // Use mi_usable_size() to determine if key has heap allocation
+                        // For SSO strings, mi_usable_size() returns 0 (not heap allocated)
+                        // For heap-allocated strings, returns the actual allocated size
+                        const char_type* key_data = key_str.data();
+                        std::size_t key_heap_size = get_usable_size(key_data);
+                        mem_size += key_heap_size;
+                        
+                        // Value size (recursive for nested structures)
+                        mem_size += member.value().compute_memory_size_impl();
+                    }
+                    break;
+                }
+                
+                case json_storage_kind::const_json_pointer:
+                {
+                    // This is just a pointer to another JSON value, no ownership
+                    mem_size = 0;
+                    break;
+                }
+                
+                default:
+                    // Unknown storage type
+                    mem_size = 0;
+                    break;
+            }
+            
+            return mem_size;
+        }
+#endif
+
         template <typename StorageType,typename... Args>
         void construct(Args&&... args)
         {
@@ -2110,6 +2253,15 @@ namespace jsoncons {
                     return 0;
             }
         }
+
+#if defined(JSONCONS_COMPUTE_MEMORY_SIZE)
+        // Computes the actual memory size used by this JSON value
+        // including all dynamically allocated memory.
+        std::size_t compute_memory_size() const
+        {
+            return compute_memory_size_impl();
+        }
+#endif
 
         string_view_type as_string_view() const
         {
