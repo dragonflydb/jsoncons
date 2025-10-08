@@ -21,6 +21,7 @@
 #include <utility> // std::move
 #include <type_traits> // std::enable_if
 #include <istream> // std::basic_istream
+#include <functional> // std::function
 #include <jsoncons/json_fwd.hpp>
 #include <jsoncons/json_type.hpp>
 #include <jsoncons/config/version.hpp>
@@ -41,9 +42,6 @@
 #include <jsoncons/utility/heap_string.hpp>
 #if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
 #include <memory_resource> // std::poymorphic_allocator
-#endif
-#if defined(JSONCONS_COMPUTE_MEMORY_SIZE)
-#include <mimalloc.h> // mi_usable_size
 #endif
 
 namespace jsoncons { 
@@ -1600,21 +1598,11 @@ namespace jsoncons {
             return ptr;
         }
 
-#if defined(JSONCONS_COMPUTE_MEMORY_SIZE)
-        // Helper function to get usable size of allocated memory
-        // Uses mi_usable_size()
-        template<typename T>
-        static std::size_t get_usable_size(const T* ptr)
-        {
-            if (ptr == nullptr)
-            {
-                return 0;
-            }
-            return mi_usable_size(const_cast<T*>(ptr));
-        }
+        // Callback type for getting usable size of allocated memory
+        using memory_size_callback = std::function<std::size_t(const void*)>;
 
-        // Recursive implementation of compute_memory_size
-        std::size_t compute_memory_size_impl() const
+        // Recursive implementation of compute_memory_size with callback
+        std::size_t compute_memory_size_impl(const memory_size_callback& get_usable_size) const
         {
             std::size_t mem_size = 0;
             
@@ -1642,8 +1630,8 @@ namespace jsoncons {
                     const auto& storage = cast<long_string_storage>();
                     const char_type* str_ptr = storage.data();
                     
-                    // Use mi_usable_size to get actual allocated size
-                    mem_size = get_usable_size(str_ptr);
+                    // Use callback to get actual allocated size
+                    mem_size = get_usable_size(static_cast<const void*>(str_ptr));
                     break;
                 }
                 
@@ -1653,7 +1641,8 @@ namespace jsoncons {
                     const auto& storage = cast<byte_string_storage>();
                     const uint8_t* data_ptr = storage.data();
                     
-                    mem_size = get_usable_size(data_ptr);
+                    // Use callback to get actual allocated size
+                    mem_size = get_usable_size(static_cast<const void*>(data_ptr));
                     break;
                 }
                 
@@ -1672,14 +1661,14 @@ namespace jsoncons {
                     {
                         // Get pointer to internal vector buffer
                         const basic_json* data_ptr = &arr[0];
-                        // Use mi_usable_size() for precise allocated size
-                        mem_size += get_usable_size(data_ptr);
+                        // Use callback for precise allocated size
+                        mem_size += get_usable_size(static_cast<const void*>(data_ptr));
                     }
                     
                     // Recursively compute size of each element
                     for (const auto& elem : arr)
                     {
-                        mem_size += elem.compute_memory_size_impl();
+                        mem_size += elem.compute_memory_size_impl(get_usable_size);
                     }
                     break;
                 }
@@ -1698,27 +1687,27 @@ namespace jsoncons {
                     {
                         // Get pointer to internal vector buffer via iterator
                         const key_value_type* data_ptr = &(*obj.begin());
-                        // Use mi_usable_size() for precise allocated size
-                        mem_size += get_usable_size(data_ptr);
+                        // Use callback for precise allocated size
+                        mem_size += get_usable_size(static_cast<const void*>(data_ptr));
                     }
                     
                     // Recursively compute size of keys and values
                     for (const auto& member : obj)
                     {
                         // Key size: key_type is std::basic_string
-                        // The mi_usable_size() above already includes the inline part of keys.
+                        // The callback above already includes the inline part of keys.
                         // Here we only need to count dynamic memory for keys that exceed SSO buffer
                         const auto& key_str = member.key();
                         
-                        // Use mi_usable_size() to determine if key has heap allocation
-                        // For SSO strings, mi_usable_size() returns 0 (not heap allocated)
+                        // Use callback to determine if key has heap allocation
+                        // For SSO strings, callback returns 0 (not heap allocated)
                         // For heap-allocated strings, returns the actual allocated size
                         const char_type* key_data = key_str.data();
-                        std::size_t key_heap_size = get_usable_size(key_data);
+                        std::size_t key_heap_size = get_usable_size(static_cast<const void*>(key_data));
                         mem_size += key_heap_size;
                         
                         // Value size (recursive for nested structures)
-                        mem_size += member.value().compute_memory_size_impl();
+                        mem_size += member.value().compute_memory_size_impl(get_usable_size);
                     }
                     break;
                 }
@@ -1738,7 +1727,6 @@ namespace jsoncons {
             
             return mem_size;
         }
-#endif
 
         template <typename StorageType,typename... Args>
         void construct(Args&&... args)
@@ -2254,14 +2242,16 @@ namespace jsoncons {
             }
         }
 
-#if defined(JSONCONS_COMPUTE_MEMORY_SIZE)
         // Computes the actual memory size used by this JSON value
         // including all dynamically allocated memory.
-        std::size_t compute_memory_size() const
+        // 
+        // Example usage with mimalloc:
+        //   auto cb = [](const void* ptr) { return ptr ? mi_usable_size(const_cast<void*>(ptr)) : 0; };
+        //   size_t size = json_obj.compute_memory_size(cb);
+        std::size_t compute_memory_size(const memory_size_callback& get_usable_size) const
         {
-            return compute_memory_size_impl();
+            return compute_memory_size_impl(get_usable_size);
         }
-#endif
 
         string_view_type as_string_view() const
         {
