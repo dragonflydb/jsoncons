@@ -2128,7 +2128,7 @@ namespace jsoncons {
             
             // Use explicit stack for iterative traversal (avoids recursion/stack overflow)
             std::vector<const basic_json*> stack;
-            stack.reserve(64); // Reserve some space to reduce allocations
+            stack.reserve(8); // Reserve some space to reduce allocations
             stack.push_back(this);
             
             while (!stack.empty())
