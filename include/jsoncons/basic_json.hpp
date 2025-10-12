@@ -2186,10 +2186,23 @@ namespace jsoncons {
                             // Use callback for precise allocated size
                             mem_size += get_usable_size(static_cast<const void*>(data_ptr));
                             
-                            // Add all array elements to stack for processing (iterative, not recursive)
+                            // Add array elements to stack for processing
+                            // Optimization: only add elements that have dynamic memory
                             for (const auto& elem : arr)
                             {
-                                stack.push_back(&elem);
+                                auto kind = elem.storage_kind();
+                                // Skip inline storage types (primitives, short strings, empty objects)
+                                if (kind != json_storage_kind::null &&
+                                    kind != json_storage_kind::boolean &&
+                                    kind != json_storage_kind::int64 &&
+                                    kind != json_storage_kind::uint64 &&
+                                    kind != json_storage_kind::half_float &&
+                                    kind != json_storage_kind::float64 &&
+                                    kind != json_storage_kind::short_str &&
+                                    kind != json_storage_kind::empty_object)
+                                {
+                                    stack.push_back(&elem);
+                                }
                             }
                         }
                         break;
@@ -2220,8 +2233,22 @@ namespace jsoncons {
                             std::size_t key_heap_size = get_usable_size(static_cast<const void*>(key_data));
                             mem_size += key_heap_size;
                             
-                            // Add value to stack for processing (iterative, not recursive)
-                            stack.push_back(&member.value());
+                            // Add value to stack for processing
+                            // Optimization: only add values that have dynamic memory
+                            const auto& value = member.value();
+                            auto kind = value.storage_kind();
+                            // Skip inline storage types (primitives, short strings, empty objects)
+                            if (kind != json_storage_kind::null &&
+                                kind != json_storage_kind::boolean &&
+                                kind != json_storage_kind::int64 &&
+                                kind != json_storage_kind::uint64 &&
+                                kind != json_storage_kind::half_float &&
+                                kind != json_storage_kind::float64 &&
+                                kind != json_storage_kind::short_str &&
+                                kind != json_storage_kind::empty_object)
+                            {
+                                stack.push_back(&value);
+                            }
                         }
                         break;
                     }
