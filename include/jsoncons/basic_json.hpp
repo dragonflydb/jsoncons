@@ -2187,19 +2187,11 @@ namespace jsoncons {
                             mem_size += get_usable_size(static_cast<const void*>(data_ptr));
                             
                             // Add array elements to stack for processing
-                            // Optimization: only add elements that have dynamic memory
+                            // Optimization: only add elements that need traversal (arrays/objects)
                             for (const auto& elem : arr)
                             {
-                                auto kind = elem.storage_kind();
-                                // Skip inline storage types (primitives, short strings, empty objects)
-                                if (kind != json_storage_kind::null &&
-                                    kind != json_storage_kind::boolean &&
-                                    kind != json_storage_kind::int64 &&
-                                    kind != json_storage_kind::uint64 &&
-                                    kind != json_storage_kind::half_float &&
-                                    kind != json_storage_kind::float64 &&
-                                    kind != json_storage_kind::short_str &&
-                                    kind != json_storage_kind::empty_object)
+                                // capacity() > 0 only for arrays/objects
+                                if (elem.capacity() > 0)
                                 {
                                     stack.push_back(&elem);
                                 }
@@ -2234,18 +2226,10 @@ namespace jsoncons {
                             mem_size += key_heap_size;
                             
                             // Add value to stack for processing
-                            // Optimization: only add values that have dynamic memory
+                            // Optimization: only add values that need traversal (arrays/objects)
                             const auto& value = member.value();
-                            auto kind = value.storage_kind();
-                            // Skip inline storage types (primitives, short strings, empty objects)
-                            if (kind != json_storage_kind::null &&
-                                kind != json_storage_kind::boolean &&
-                                kind != json_storage_kind::int64 &&
-                                kind != json_storage_kind::uint64 &&
-                                kind != json_storage_kind::half_float &&
-                                kind != json_storage_kind::float64 &&
-                                kind != json_storage_kind::short_str &&
-                                kind != json_storage_kind::empty_object)
+                            // capacity() > 0 only for arrays/objects
+                            if (value.capacity() > 0)
                             {
                                 stack.push_back(&value);
                             }
