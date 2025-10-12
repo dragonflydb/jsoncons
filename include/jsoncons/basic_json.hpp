@@ -2176,10 +2176,9 @@ namespace jsoncons {
                         // Get array internal storage
                         const array& arr = current->template cast<array_storage>().value();
                         
-                        // Memory for the array object itself
-                        mem_size += sizeof(array);
-                        
                         // Memory for the array's internal buffer
+                        // Note: We only count dynamically allocated memory (heap).
+                        // The array object itself is part of array_storage allocation.
                         if (!arr.empty())
                         {
                             // Get pointer to internal vector buffer
@@ -2201,10 +2200,9 @@ namespace jsoncons {
                         // Get object internal storage
                         const object& obj = current->template cast<object_storage>().value();
                         
-                        // Memory for the object itself
-                        mem_size += sizeof(object);
-                        
                         // Memory for the object's internal storage (vector of key_value_type)
+                        // Note: We only count dynamically allocated memory (heap).
+                        // The object itself is part of object_storage allocation.
                         if (!obj.empty())
                         {
                             // Get pointer to internal vector buffer via iterator
