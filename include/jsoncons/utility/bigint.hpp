@@ -287,6 +287,11 @@ public:
         ::new (&inlined_) inlined_storage();
     }
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
     bigint_storage(const bigint_storage& other)
         : word_allocator_type(other.get_allocator())
     {
@@ -299,6 +304,10 @@ public:
             ::new (&allocated_) allocated_storage(other.allocated_, get_allocator());
         }
     }
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
     bigint_storage(const bigint_storage& other, const Allocator& alloc)
         : word_allocator_type(alloc)
