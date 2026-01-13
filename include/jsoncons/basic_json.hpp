@@ -25,6 +25,7 @@
 #include <utility> // std::move
 #include <vector>
 
+#include <functional> // std::function
 #include <jsoncons/allocator_set.hpp>
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/version.hpp>
@@ -1505,6 +1506,146 @@ namespace jsoncons {
                 default:
                     return 0;
             }
+        }
+
+        // Callback type for getting usable size of allocated memory
+        using memory_size_callback = std::function<std::size_t(const void*)>;
+
+        // Computes the actual memory size used by this JSON value
+        // including all dynamically allocated memory.
+        //Uses iterative traversal (not recursion) to avoid stack overflow.
+        //
+        // Example usage with mimalloc:
+        //   auto cb = [](const void* ptr) { return ptr ? mi_usable_size(const_cast<void*>(ptr)) : 0; };
+        //   size_t size = json_obj.compute_memory_size(cb);
+        std::size_t compute_memory_size(const memory_size_callback& get_usable_size) const
+        {
+            std::size_t mem_size = 0;
+
+            // Use explicit stack for iterative traversal (avoids recursion/stack overflow)
+            std::vector<const basic_json*> stack;
+            stack.reserve(8); // Reserve some space to reduce allocations
+            stack.push_back(this);
+
+            while (!stack.empty())
+            {
+                const basic_json* current = stack.back();
+                stack.pop_back();
+
+                switch (current->storage_kind())
+                {
+                    case json_storage_kind::null:
+                    case json_storage_kind::empty_object:
+                    case json_storage_kind::boolean:
+                    case json_storage_kind::int64:
+                    case json_storage_kind::uint64:
+                    case json_storage_kind::half_float:
+                    case json_storage_kind::float64:
+                    case json_storage_kind::short_str:
+                        // These are stored inline, no dynamic allocation
+                        break;
+
+                    case json_storage_kind::long_str:
+                    {
+                        // Get the string data pointer and compute its allocated size
+                        const auto& storage = current->template cast<long_string_storage>();
+                        const char_type* str_ptr = storage.data();
+
+                        // Use callback to get actual allocated size
+                        mem_size += get_usable_size(static_cast<const void*>(str_ptr));
+                        break;
+                    }
+
+                    case json_storage_kind::byte_str:
+                    {
+                        // Similar to long_str
+                        const auto& storage = current->template cast<byte_string_storage>();
+                        const uint8_t* data_ptr = storage.data();
+
+                        // Use callback to get actual allocated size
+                        mem_size += get_usable_size(static_cast<const void*>(data_ptr));
+                        break;
+                    }
+
+                    case json_storage_kind::array:
+                    {
+                        // Get array internal storage
+                        const array& arr = current->template cast<array_storage>().value();
+
+
+                        // Memory for the array's internal buffer
+                        // Note: We only count dynamically allocated memory (heap).
+                        // The array object itself is part of array_storage allocation.
+                        if (!arr.empty())
+                        {
+                            // Get pointer to internal vector buffer
+                            const basic_json* data_ptr = &arr[0];
+                            // Use callback for precise allocated size
+                            mem_size += get_usable_size(static_cast<const void*>(data_ptr));
+
+                            // Add array elements to stack for processing
+                            // Optimization: only add elements that need traversal (arrays/objects)
+                            for (const auto& elem : arr)
+                            {
+                                // capacity() > 0 only for arrays/objects
+                                if (elem.capacity() > 0)
+                                {
+                                    stack.push_back(&elem);
+                                }
+                            }
+                        }
+                        break;
+                    }
+
+                    case json_storage_kind::object:
+                    {
+                        // Get object internal storage
+                        const object& obj = current->template cast<object_storage>().value();
+
+
+                        // Memory for the object's internal storage (vector of key_value_type)
+                        // Note: We only count dynamically allocated memory (heap).
+                        // The object itself is part of object_storage allocation.
+                        if (!obj.empty())
+                        {
+                            // Get pointer to internal vector buffer via iterator
+                            const key_value_type* data_ptr = &(*obj.begin());
+                            // Use callback for precise allocated size
+                            mem_size += get_usable_size(static_cast<const void*>(data_ptr));
+                        }
+
+                        // Process keys and values
+                        for (const auto& member : obj)
+                        {
+                            // Key size: check if key has heap allocation
+                            const auto& key_str = member.key();
+                            const char_type* key_data = key_str.data();
+                            std::size_t key_heap_size = get_usable_size(static_cast<const void*>(key_data));
+                            mem_size += key_heap_size;
+
+                            // Add value to stack for processing
+                            // Optimization: only add values that need traversal (arrays/objects)
+                            const auto& value = member.value();
+                            // capacity() > 0 only for arrays/objects
+                            if (value.capacity() > 0)
+                            {
+                                stack.push_back(&value);
+                            }
+                        }
+                        break;
+                    }
+
+                    case json_storage_kind::json_const_ref:
+                        // This is just a pointer to another JSON value, no ownership
+                        break;
+
+                    default:
+                        // Unknown storage type
+                        break;
+                }
+            }
+
+            return mem_size;
         }
 
         string_view_type as_string_view() const
