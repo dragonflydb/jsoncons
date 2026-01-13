@@ -668,7 +668,10 @@ namespace detail {
             std::size_t length = jsoncons::detail::escape_string(name.data(), name.length(),options_.escape_all_non_ascii(),options_.escape_solidus(),sink_);
             sink_.push_back('\"');
             sink_.append(colon_str_.data(),colon_str_.length());
-            column_ += (length+2+colon_str_.length());
+
+            const auto after_key = options_.after_key_chars();
+            sink_.append(after_key.data(),after_key.length());
+            column_ += length + 2 + colon_str_.length() + after_key.length();
             JSONCONS_VISITOR_RETURN;
         }
 
@@ -1081,9 +1084,16 @@ namespace detail {
             sink_.append(options_.new_line_chars().data(),options_.new_line_chars().length());
             for (int i = 0; i < indent_amount_; ++i)
             {
-                sink_.push_back(indent_char_);
+                if (options_.indent_chars().empty())
+                {
+                    sink_.push_back(indent_char_);
+                }
+                else
+                {
+                    sink_.append(options_.indent_chars().data(), options_.indent_chars().length());
+                }
             }
-            column_ = indent_amount_;
+            column_ = indent_amount_ * options_.new_line_chars().length();
         }
 
         void new_line(std::size_t len)
@@ -1091,7 +1101,14 @@ namespace detail {
             sink_.append(options_.new_line_chars().data(),options_.new_line_chars().length());
             for (std::size_t i = 0; i < len; ++i)
             {
-                sink_.push_back(' ');
+                if (options_.indent_chars().empty())
+                {
+                    sink_.push_back(indent_char_);
+                }
+                else
+                {
+                    sink_.append(options_.indent_chars().data(), options_.indent_chars().length());
+                }
             }
             column_ = len;
         }

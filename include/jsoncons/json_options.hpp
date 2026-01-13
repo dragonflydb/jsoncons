@@ -340,6 +340,8 @@ private:
     std::size_t line_length_limit_{line_length_limit_default};
     string_type new_line_chars_;
     char_type indent_char_;
+    string_type after_key_chars_;
+    string_type indent_chars_;
 public:
     basic_json_encode_options()
         : escape_all_non_ascii_(false),
@@ -383,7 +385,9 @@ public:
           indent_size_(other.indent_size_),
           line_length_limit_(other.line_length_limit_),
           new_line_chars_(std::move(other.new_line_chars_)),
-          indent_char_(other.indent_char_)
+          indent_char_(other.indent_char_),
+          after_key_chars_(std::move(other.after_key_chars_)),
+          indent_chars_(std::move(other.indent_chars_))
     {
     }
     
@@ -448,6 +452,16 @@ public:
     string_type new_line_chars() const 
     {
         return new_line_chars_;
+    }
+
+    string_type after_key_chars() const
+    {
+        return after_key_chars_;
+    }
+
+    string_type indent_chars() const
+    {
+        return indent_chars_;
     }
 
     std::size_t line_length_limit() const 
@@ -519,6 +533,8 @@ public:
     using basic_json_encode_options<CharT>::pad_inside_object_braces;
     using basic_json_encode_options<CharT>::pad_inside_array_brackets;
     using basic_json_encode_options<CharT>::new_line_chars;
+    using basic_json_encode_options<CharT>::after_key_chars;
+    using basic_json_encode_options<CharT>::indent_chars;
     using basic_json_encode_options<CharT>::line_length_limit;
     using basic_json_encode_options<CharT>::float_format;
     using basic_json_encode_options<CharT>::precision;
@@ -648,6 +664,18 @@ public:
     basic_json_options& new_line_chars(const string_type& value)
     {
         this->new_line_chars_ = value;
+        return *this;
+    }
+
+    basic_json_options& after_key_chars(const string_type& value)
+    {
+        this->after_key_chars_ = value;
+        return *this;
+    }
+
+    basic_json_options& indent_chars(const string_type& value)
+    {
+        this->indent_chars_ = value;
         return *this;
     }
 
